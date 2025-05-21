@@ -6,8 +6,8 @@ from django.contrib.auth.admin import UserAdmin
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
     model = CustomUser
-    list_display = ('username', 'email', 'telegram_id', 'is_speaker', 'is_organizer')
-    list_filter = ('is_speaker', 'is_organizer', 'is_staff', 'is_superuser')
+    list_display = ('username', 'email', 'telegram_id', 'role',)
+    list_filter = ('role', 'is_staff', 'is_superuser')
     search_fields = ('username', 'email', 'telegram_name')
     fieldsets = UserAdmin.fieldsets + (
         ('Telegram Info', {
