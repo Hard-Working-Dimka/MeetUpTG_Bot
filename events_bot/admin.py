@@ -6,17 +6,24 @@ from django.contrib.auth.admin import UserAdmin
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
     model = CustomUser
-    list_display = ('username', 'email', 'telegram_id', 'role',)
-    list_filter = ('role', 'is_staff', 'is_superuser')
-    search_fields = ('username', 'email', 'telegram_name')
-    fieldsets = UserAdmin.fieldsets + (
-        ('Telegram Info', {
-            'fields': ('telegram_id', 'telegram_name')
-        }),
-        ('Доп. информация', {
-            'fields': ('is_speaker', 'is_organizer', 'about_user', 'stack', 'grade')
-        }),
+
+    fieldsets = (
+        *UserAdmin.fieldsets,
+        (
+            'Дополнительная информация',
+            {
+                'fields': (
+                    'telegram_id',
+                    'telegram_name',
+                    'role',
+                    'about_user',
+                    'stack',
+                    'grade',
+                ),
+            },
+        ),
     )
+    list_display = ('username', 'email', 'first_name', 'last_name', 'role')
 
 
 @admin.register(Event)
