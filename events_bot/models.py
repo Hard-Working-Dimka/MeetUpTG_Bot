@@ -51,3 +51,10 @@ class Donation(models.Model):
 
     def __str__(self):
         return self.summ
+
+
+class BroadcastMessage(models.Model):
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="broadcasts")
+    text = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
