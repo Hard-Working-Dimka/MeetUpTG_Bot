@@ -3,10 +3,14 @@ from django.contrib.auth.models import AbstractUser
 
 
 class CustomUser(AbstractUser):
+    ROLES = [
+        ('organizer', 'Организатор'),
+        ('speaker', 'Выступающий'),
+        ('listener', 'Слушатель'),
+    ]
     telegram_id = models.CharField(max_length=50, unique=True, blank=True, null=True)
     telegram_name = models.CharField(max_length=255, blank=True, null=True)
-    is_speaker = models.BooleanField(default=False)
-    is_organizer = models.BooleanField(default=False)
+    role = models.CharField(max_length=30, choices=ROLES)
     # из анкеты знакомств
     about_user = models.TextField(blank=True, null=True)
     stack = models.TextField(blank=True, null=True)
@@ -32,6 +36,7 @@ class Presentation(models.Model):
     end_at = models.DateTimeField(blank=True, null=True)
     event = models.ForeignKey(Event, on_delete=models.CASCADE)
     approved = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=False)
 
     def __str__(self):
         return self.topic
@@ -40,6 +45,7 @@ class Presentation(models.Model):
 class Question(models.Model):
     presentation = models.ForeignKey(Presentation, on_delete=models.CASCADE, related_name="questions")
     question_text = models.CharField(max_length=255, blank=True, null=True)
+    answered = models.BooleanField(default=False)
 
     def __str__(self):
         return self.question_text
