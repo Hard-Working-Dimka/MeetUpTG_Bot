@@ -8,7 +8,8 @@ class CustomUser(AbstractUser):
         ('speaker', 'Выступающий'),
         ('listener', 'Слушатель'),
     ]
-    telegram_id = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    telegram_id = models.CharField(
+        max_length=50, unique=True, blank=True, null=True)
     telegram_name = models.CharField(max_length=255, blank=True, null=True)
     role = models.CharField(max_length=30, choices=ROLES)
     # из анкеты знакомств
@@ -24,6 +25,7 @@ class Event(models.Model):
     name = models.CharField(max_length=255, blank=True, null=True)
     info = models.TextField(blank=True, null=True)
     start_at = models.DateTimeField(blank=True, null=True)
+    end_at = models.DateTimeField(blank=True, null=True)
 
     def __str__(self):
         return self.name
@@ -43,7 +45,8 @@ class Presentation(models.Model):
 
 
 class Question(models.Model):
-    presentation = models.ForeignKey(Presentation, on_delete=models.CASCADE, related_name="questions")
+    presentation = models.ForeignKey(
+        Presentation, on_delete=models.CASCADE, related_name="questions")
     question_text = models.CharField(max_length=255, blank=True, null=True)
     answered = models.BooleanField(default=False)
 
@@ -60,6 +63,7 @@ class Donation(models.Model):
 
 
 class BroadcastMessage(models.Model):
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="broadcasts")
+    event = models.ForeignKey(
+        Event, on_delete=models.CASCADE, related_name="broadcasts")
     text = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
