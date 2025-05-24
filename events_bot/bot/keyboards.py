@@ -54,6 +54,24 @@ async def main_keyboard(user_id):
             callback_data='show_my_questions'
         )
 
+    if not user.notifications:
+        builder.button(
+            text='🔔 Подписаться на уведомления', 
+            callback_data='subscribe_notifications'
+        )
+
+    if user.role == 'organizer':
+        builder.button(
+            text='Отправить уведомления',
+            callback_data='send_notifications'
+        )
+
+    if user.role == 'listener':
+        builder.button(
+            text='🎤 Подать заявку спикера',
+            callback_data='apply_for_speaker'
+        )
+
     builder.adjust(1)
     return builder.as_markup()
 
@@ -127,4 +145,13 @@ def questions_keyboard():
         callback_data="mark_answered"
     )
     builder.adjust(1)
+    return builder.as_markup()
+
+
+def notifications_keyboard():
+    builder = InlineKeyboardBuilder()
+    builder.button(text='✅ Да', callback_data='confirm_subscription')
+    builder.button(text='❌ Нет', callback_data='cancel_subscription')
+    builder.adjust(2)
+
     return builder.as_markup()

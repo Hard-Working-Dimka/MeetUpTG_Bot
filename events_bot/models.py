@@ -13,6 +13,10 @@ class CustomUser(AbstractUser):
         max_length=50, unique=True, blank=True, null=True)
     telegram_name = models.CharField(max_length=255, blank=True, null=True)
     role = models.CharField(max_length=30, choices=ROLES)
+    notifications = models.BooleanField(
+        default=False,
+        verbose_name="Получать уведомления"
+    )
     # из анкеты знакомств
     full_name = models.CharField(max_length=255, blank=True, null=True)
     phone_number = PhoneNumberField(blank=True, null=True, region='RU')

@@ -35,7 +35,9 @@ from keyboards import (
     start_keyboard,
     show_speakers,
     profiles_keyboard,
-    questions_keyboard
+    questions_keyboard,
+    notifications_keyboard,
+    main_keyboard
 )
 
 router = Router()
@@ -57,6 +59,10 @@ class ProfileStates(StatesGroup):
 class PaymentStates(StatesGroup):
     waiting_amount = State()
     confirming_payment = State()
+
+
+class NotificationStates(StatesGroup):
+    confirming_subscription = State()
 
 
 load_dotenv()
@@ -492,3 +498,59 @@ async def process_successful_payment(message: types.Message, state: FSMContext):
 async def cancel_payment(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer("❌ Операция отменена. Вы можете начать заново.")
+
+
+@router.callback_query(F.data == 'subscribe_notifications')
+async def ask_subscription(callback: CallbackQuery, state: FSMContext):
+
+    await callback.message.answer(
+        "Хотите получать уведомления об изменениях программы,\n"
+        "времени начала, спикерах и других важных обновлениях?",
+        reply_markup=notifications_keyboard()
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == 'confirm_subscription')
+async def confirm_subscription(callback: CallbackQuery):
+    user = await sync_to_async(CustomUser.objects.get)(telegram_id=callback.from_user.id)
+    user.notifications = True
+    await sync_to_async(user.save)()
+
+    await callback.message.edit_text("✅ Вы подписались на уведомления!")
+    await callback.answer()
+
+
+@router.callback_query(F.data == 'cancel_subscription')
+async def cancel_subscription(callback: CallbackQuery):
+    user_id = callback.from_user.id
+
+    await callback.message.edit_text(
+        "Вы можете подписаться на уведомления позже.",
+        reply_markup=await main_keyboard(user_id)
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == 'send_notifications')
+async def send_notification_to_subscribers(callback: types.CallbackQuery):
+    subscribers = await sync_to_async(list)(
+        CustomUser.objects.filter(notifications=True)
+    )
+
+    message_text = (
+        "Программа мероприятия была обновлена!\n"
+        "Используйте кнопку '📅 Программа мероприятия' "
+        "для просмотра актуального расписания."
+    )
+
+    for user in subscribers:
+        await callback.bot.send_message(
+            chat_id=user.telegram_id,
+            text=f"🔔 Уведомление:\n\n{message_text}"
+        )
+
+    report_message = "✅ Уведомление успешно отправлено."
+
+    await callback.message.answer(report_message)
+    await callback.answer()

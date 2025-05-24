@@ -21,6 +21,7 @@ class CustomUserAdmin(UserAdmin):
                     'about_user',
                     'stack',
                     'grade',
+                    'notifications',
                 ),
             },
         ),
