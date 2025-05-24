@@ -28,7 +28,8 @@ from events_bot.models import (
     Question,
     Presentation,
     Event,
-    Donation
+    Donation,
+    SpeakerApplication
 )
 from utils import show_events
 from keyboards import (
@@ -63,6 +64,12 @@ class PaymentStates(StatesGroup):
 
 class NotificationStates(StatesGroup):
     confirming_subscription = State()
+
+
+class SpeakerApplicationStates(StatesGroup):
+    waiting_for_topic = State()
+    waiting_for_description = State()
+    waiting_for_experience = State()
 
 
 load_dotenv()
@@ -554,3 +561,60 @@ async def send_notification_to_subscribers(callback: types.CallbackQuery):
 
     await callback.message.answer(report_message)
     await callback.answer()
+
+
+@router.callback_query(F.data == 'apply_for_speaker')
+async def start_speaker_application(callback: types.CallbackQuery, state: FSMContext):
+    await callback.message.answer(
+        "Пожалуйста, заполните заявку на роль спикера.\n\n"
+        "Введите тему вашего выступления:"
+    )
+    await state.set_state(SpeakerApplicationStates.waiting_for_topic)
+    await callback.answer()
+
+
+@router.message(SpeakerApplicationStates.waiting_for_topic)
+async def process_topic(message: types.Message, state: FSMContext):
+    await state.update_data(topic=message.text)
+    await message.answer("Теперь введите описание вашего выступления:")
+    await state.set_state(SpeakerApplicationStates.waiting_for_description)
+
+
+@router.message(SpeakerApplicationStates.waiting_for_description)
+async def process_description(message: types.Message, state: FSMContext):
+    await state.update_data(description=message.text)
+    await message.answer("Расскажите о вашем опыте в этой теме:")
+    await state.set_state(SpeakerApplicationStates.waiting_for_experience)
+
+
+@router.message(SpeakerApplicationStates.waiting_for_experience)
+async def process_experience(message: types.Message, state: FSMContext):
+    user_data = await state.get_data()
+    user = await sync_to_async(CustomUser.objects.get)(telegram_id=message.from_user.id)
+
+    application = await sync_to_async(SpeakerApplication.objects.create)(
+        user=user,
+        topic=user_data['topic'],
+        description=user_data['description'],
+        experience=message.text
+    )
+
+    await message.answer(
+        "✅ Ваша заявка на роль спикера успешно подана!\n\n"
+        f"Тема: {user_data['topic']}\n"
+        f"Описание: {user_data['description']}\n"
+        f"Опыт: {message.text}\n\n"
+        "Организаторы рассмотрят вашу заявку и свяжутся с вами."
+    )
+
+    organizers = await sync_to_async(list)(CustomUser.objects.filter(role='organizer'))
+    for organizer in organizers:
+        await message.bot.send_message(
+            chat_id=os.getenv('organizer_chat_id'),
+            text=f"Новая заявка спикера!\n\n"
+                    f"От: {user.full_name or user.username}\n"
+                    f"Тема: {user_data['topic']}\n\n"
+                    f"Для просмотра всех заявок перейдите в админку Django"
+        )
+
+    await state.clear()
