@@ -1,5 +1,6 @@
 from pathlib import Path
 from environs import env
+import dj_database_url
 
 env.read_env()
 
@@ -53,10 +54,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'meetup.wsgi.application'
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(default=env.str('DATABASE_URL', default=f'sqlite:///{BASE_DIR / "db.sqlite3"}'))
 }
 
 AUTH_PASSWORD_VALIDATORS = [
