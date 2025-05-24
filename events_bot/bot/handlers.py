@@ -281,12 +281,14 @@ async def prev_question(callback: CallbackQuery, state: FSMContext):
     await show_question(callback, state)
     await callback.answer()
 
+
 @router.callback_query(F.data.startswith('next_question_'))
 async def next_question(callback: CallbackQuery, state: FSMContext):
     new_index = int(callback.data.split('_')[-1])
     await state.update_data(current_index=new_index)
     await show_question(callback, state)
     await callback.answer()
+
 
 @router.callback_query(F.data.startswith('mark_answered_'))
 async def mark_question_answered(callback: CallbackQuery):
@@ -296,6 +298,7 @@ async def mark_question_answered(callback: CallbackQuery):
 
     await callback.answer("Вопрос помечен как отвеченный", show_alert=True)
     await show_my_questions(callback)
+
 
 @router.callback_query(F.data.startswith('answer_question_'))
 async def answer_question(callback: CallbackQuery):
