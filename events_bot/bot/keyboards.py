@@ -1,3 +1,6 @@
+from asgiref.sync import sync_to_async
+from events_bot.models import CustomUser
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 import os
 import sys
 import django
@@ -8,11 +11,6 @@ sys.path.append(str(BASE_DIR))
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'meetup.settings')
 django.setup()
-
-
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from events_bot.models import CustomUser
-from asgiref.sync import sync_to_async
 
 
 def start_keyboard():
@@ -56,7 +54,7 @@ async def main_keyboard(user_id):
 
     if not user.notifications:
         builder.button(
-            text='🔔 Подписаться на уведомления', 
+            text='🔔 Подписаться на уведомления',
             callback_data='subscribe_notifications'
         )
 
@@ -134,17 +132,40 @@ def profiles_keyboard(page: int, total_pages: int):
     return builder.as_markup()
 
 
-def questions_keyboard():
+def questions_keyboard(current_index: int, total_questions: int,
+                       question_id: int, is_answered: bool, asker_id: str):
     builder = InlineKeyboardBuilder()
+
+    if current_index > 0:
+        builder.button(
+            text="← Назад", callback_data=f"prev_question_{current_index-1}")
+
+    if current_index < total_questions - 1:
+        builder.button(text="Вперед →",
+                       callback_data=f"next_question_{current_index+1}")
+
+    if not is_answered:
+        builder.button(
+            text="✏️ Ответить",
+            callback_data=f"answer_question_{question_id}_{asker_id}"
+        )
+        builder.button(
+            text="✅ Пометить как отвеченный",
+            callback_data=f"mark_answered_{question_id}"
+        )
+
+    builder.adjust(2, 2)
+    return builder.as_markup()
+
+
+def answer_question_keyboard(asker_id):
+    builder = InlineKeyboardBuilder()
+
     builder.button(
-        text="Ответить на вопрос",
-        callback_data="answer_question"
+        text="✏️ Написать ответ", 
+        url=f"tg://user?id={asker_id}"
     )
-    builder.button(
-        text="✅ Пометить как отвеченный",
-        callback_data="mark_answered"
-    )
-    builder.adjust(1)
+
     return builder.as_markup()
 
 

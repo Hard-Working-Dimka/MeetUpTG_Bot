@@ -38,7 +38,9 @@ from keyboards import (
     profiles_keyboard,
     questions_keyboard,
     notifications_keyboard,
-    main_keyboard
+    main_keyboard,
+    questions_keyboard,
+    answer_question_keyboard
 )
 
 router = Router()
@@ -70,6 +72,10 @@ class SpeakerApplicationStates(StatesGroup):
     waiting_for_topic = State()
     waiting_for_description = State()
     waiting_for_experience = State()
+
+
+class QuestionNavigation(StatesGroup):
+    current_index = State()
 
 
 load_dotenv()
@@ -207,7 +213,7 @@ async def process_question(message: types.Message, state: FSMContext):
 
 
 @router.callback_query(F.data == 'show_my_questions')
-async def show_my_questions(callback: CallbackQuery):
+async def show_my_questions(callback: CallbackQuery, state: FSMContext):
 
     speaker = await sync_to_async(CustomUser.objects.get)(
         telegram_id=callback.from_user.id
@@ -223,27 +229,86 @@ async def show_my_questions(callback: CallbackQuery):
         await callback.message.answer("Вам пока не задавали вопросов.")
         return await callback.answer()
 
+    await state.update_data(questions=questions, current_index=0)
+    await show_question(callback, state)
+    await callback.answer()
 
-    bot_message = ["Вопросы к вашим выступлениям:\n"]
-    for question in questions[:10]:
-        presenter = question.presentation.user
-        asker_name = f"@{presenter.telegram_name}" if presenter.telegram_name else "Аноним"
 
-        bot_message.append(
-                f"Тема: <b>{question.presentation.topic}</b>\n"
-                f"От: {asker_name}\n"
-                f"Вопрос: {question.question_text}\n"
-                f"Дата: {question.presentation.start_at.strftime('%d.%m.%Y %H:%M')}\n"
-                f"Статус: {'✅ Отвечено' if question.answered else '❌ Не отвечено'}\n"
-                "──────────────────"
-            )
+async def show_question(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    questions = data['questions']
+    current_index = data['current_index']
+    question = questions[current_index]
+
+    presenter = question.presentation.user
+    asker_name = f"@{presenter.username}"
+
+    message_text = (
+        f"Вопрос {current_index + 1} из {len(questions)}:\n\n"
+        f"Тема: <b>{question.presentation.topic}</b>\n"
+        f"От: {asker_name}\n"
+        f"Вопрос: {question.question_text}\n"
+        f"Дата: {question.presentation.start_at.strftime('%d.%m.%Y %H:%M')}\n"
+        f"Статус: {'✅ Отвечено' if question.answered else '❌ Не отвечено'}"
+    )
+
+    keyboard = questions_keyboard(
+        current_index=current_index,
+        total_questions=len(questions),
+        question_id=question.id,
+        is_answered=question.answered,
+        asker_id=presenter.telegram_id
+    )
+
+    try:
+        await callback.message.edit_text(
+            text=message_text,
+            parse_mode="HTML",
+            reply_markup=keyboard
+        )
+    except:
+        await callback.message.answer(
+            text=message_text,
+            parse_mode="HTML",
+            reply_markup=keyboard
+        )
+
+
+@router.callback_query(F.data.startswith('prev_question_'))
+async def prev_question(callback: CallbackQuery, state: FSMContext):
+    new_index = int(callback.data.split('_')[-1])
+    await state.update_data(current_index=new_index)
+    await show_question(callback, state)
+    await callback.answer()
+
+@router.callback_query(F.data.startswith('next_question_'))
+async def next_question(callback: CallbackQuery, state: FSMContext):
+    new_index = int(callback.data.split('_')[-1])
+    await state.update_data(current_index=new_index)
+    await show_question(callback, state)
+    await callback.answer()
+
+@router.callback_query(F.data.startswith('mark_answered_'))
+async def mark_question_answered(callback: CallbackQuery):
+    question_id = int(callback.data.split('_')[-1])
+
+    await sync_to_async(Question.objects.filter(id=question_id).update)(answered=True)
+
+    await callback.answer("Вопрос помечен как отвеченный", show_alert=True)
+    await show_my_questions(callback)
+
+@router.callback_query(F.data.startswith('answer_question_'))
+async def answer_question(callback: CallbackQuery):
+    _, _, question_id, asker_id = callback.data.split('_')
+    question = await sync_to_async(Question.objects.get)(id=question_id)
 
     await callback.message.answer(
-            "\n".join(bot_message),
-            parse_mode="HTML",
-            reply_markup=questions_keyboard(),
-            disable_web_page_preview=True
-        )
+        f"Чтобы ответить на вопрос:\n\n"
+        f"<i>{question.question_text}</i>\n\n"
+        f"Нажмите кнопку ниже чтобы написать пользователю напрямую.",
+        reply_markup=answer_question_keyboard(asker_id),
+        parse_mode="HTML"
+    )
     await callback.answer()
 
 
