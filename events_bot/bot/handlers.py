@@ -236,48 +236,58 @@ async def show_my_questions(callback: CallbackQuery, state: FSMContext):
 
 async def show_question(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
-    questions = data['questions']
-    current_index = data['current_index']
-    question = questions[current_index]
+    all_questions = data['questions']
+
+    unanswered_questions = [q for q in all_questions if not q.answered]
+    current_index = data.get('current_unanswered_index', 0)
+
+    if not unanswered_questions:
+        try:
+            await callback.message.edit_text(
+                "У вас нет неотвеченных вопросов!",
+                reply_markup=None
+            )
+        except:
+            await callback.message.answer("У вас нет неотвеченных вопросов!")
+        return await callback.answer()
+
+    current_index = min(current_index, len(unanswered_questions) - 1)
+    question = unanswered_questions[current_index]
 
     presenter = question.presentation.user
     asker_name = f"@{presenter.username}"
 
     message_text = (
-        f"Вопрос {current_index + 1} из {len(questions)}:\n\n"
-        f"Тема: <b>{question.presentation.topic}</b>\n"
+        f"Вопрос {current_index + 1} из {len(unanswered_questions)}"
+        f"\nТема: <b>{question.presentation.topic}</b>\n"
         f"От: {asker_name}\n"
         f"Вопрос: {question.question_text}\n"
         f"Дата: {question.presentation.start_at.strftime('%d.%m.%Y %H:%M')}\n"
-        f"Статус: {'✅ Отвечено' if question.answered else '❌ Не отвечено'}"
+        f"Статус: ❌ Не отвечено"
     )
 
     keyboard = questions_keyboard(
         current_index=current_index,
-        total_questions=len(questions),
+        total_questions=len(unanswered_questions),
         question_id=question.id,
         is_answered=question.answered,
         asker_id=presenter.telegram_id
     )
 
-    try:
-        await callback.message.edit_text(
-            text=message_text,
-            parse_mode="HTML",
-            reply_markup=keyboard
-        )
-    except:
-        await callback.message.answer(
-            text=message_text,
-            parse_mode="HTML",
-            reply_markup=keyboard
-        )
+    await callback.message.edit_text(
+        text=message_text,
+        parse_mode="HTML",
+        reply_markup=keyboard
+    )
+
+    await state.update_data(current_unanswered_index=current_index)
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith('prev_question_'))
 async def prev_question(callback: CallbackQuery, state: FSMContext):
     new_index = int(callback.data.split('_')[-1])
-    await state.update_data(current_index=new_index)
+    await state.update_data(current_unanswered_index=new_index)
     await show_question(callback, state)
     await callback.answer()
 
@@ -285,7 +295,7 @@ async def prev_question(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith('next_question_'))
 async def next_question(callback: CallbackQuery, state: FSMContext):
     new_index = int(callback.data.split('_')[-1])
-    await state.update_data(current_index=new_index)
+    await state.update_data(current_unanswered_index=new_index)
     await show_question(callback, state)
     await callback.answer()
 

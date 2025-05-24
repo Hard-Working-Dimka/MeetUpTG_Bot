@@ -54,7 +54,7 @@ class PresentationAdmin(admin.ModelAdmin):
 
 @admin.register(Question)
 class QuestionAdmin(admin.ModelAdmin):
-    list_display = ('question_text', 'presentation')
+    list_display = ('question_text', 'presentation', 'answered')
     search_fields = ('question_text', 'presentation__topic')
     autocomplete_fields = ('presentation',)
 

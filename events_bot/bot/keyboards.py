@@ -136,13 +136,18 @@ def questions_keyboard(current_index: int, total_questions: int,
                        question_id: int, is_answered: bool, asker_id: str):
     builder = InlineKeyboardBuilder()
 
-    if current_index > 0:
-        builder.button(
-            text="← Назад", callback_data=f"prev_question_{current_index-1}")
+    if total_questions > 1:
+        if current_index > 0:
+            builder.button(
+                text="← Назад", 
+                callback_data=f"prev_question_{current_index-1}"
+            )
 
-    if current_index < total_questions - 1:
-        builder.button(text="Вперед →",
-                       callback_data=f"next_question_{current_index+1}")
+        if current_index < total_questions - 1:
+            builder.button(
+                text="Вперед →",
+                callback_data=f"next_question_{current_index+1}"
+            )
 
     if not is_answered:
         builder.button(
