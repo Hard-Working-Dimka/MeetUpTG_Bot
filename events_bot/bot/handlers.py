@@ -50,6 +50,8 @@ class ProfileStates(StatesGroup):
     waiting_about = State()
     waiting_stack = State()
     waiting_grade = State()
+    waiting_full_name = State()
+    waiting_phone = State()
 
 
 class PaymentStates(StatesGroup):
@@ -222,7 +224,7 @@ async def show_my_questions(callback: CallbackQuery):
                 f"Статус: {'✅ Отвечено' if question.answered else '❌ Не отвечено'}\n"
                 "──────────────────"
             )
-        
+
     await callback.message.answer(
             "\n".join(bot_message),
             parse_mode="HTML",
@@ -285,16 +287,53 @@ user_pagination: Dict[int, int] = {}
 async def connect_developers(callback: CallbackQuery, state: FSMContext):
     user = await sync_to_async(CustomUser.objects.get)(telegram_id=callback.from_user.id)
 
-    if not user.about_user or not user.stack or not user.grade:
-        await callback.message.answer(
-            'Пожалуйста, заполните анкету для знакомств:\n'
-            'Напишите краткое описание о себе (чем занимаетесь, интересы):'
-        )
-        await state.set_state(ProfileStates.waiting_about)
-        return await callback.answer()
+    required_fields = [
+        ('full_name', 'Пожалуйста, укажите ваше ФИО:'),
+        ('phone_number', 'Укажите ваш номер телефона (+79991234567):'),
+        ('about_user', 'Напишите краткое описание о себе (чем занимаетесь, интересы):')
+    ]
+
+    for field, message_text in required_fields:
+        if not getattr(user, field):
+            await callback.message.answer(message_text)
+            await state.set_state(getattr(ProfileStates, f'waiting_{field}'))
+            return await callback.answer()
 
     await show_profiles(callback.message, user)
     await callback.answer()
+
+
+@router.message(ProfileStates.waiting_full_name)
+async def process_full_name(message: types.Message, state: FSMContext):
+    if len(message.text) < 5:
+        await message.answer("ФИО должно содержать минимум 5 символов. Попробуйте еще раз:")
+        return
+
+    await state.update_data(full_name=message.text)
+
+    user = await sync_to_async(CustomUser.objects.get)(telegram_id=message.from_user.id)
+    if not user.phone_number:
+        await message.answer("Укажите ваш номер телефона (+79991234567):")
+        await state.set_state(ProfileStates.waiting_phone)
+    else:
+        await message.answer("Напишите краткое описание о себе (чем занимаетесь, интересы):")
+        await state.set_state(ProfileStates.waiting_about)
+
+
+@router.message(ProfileStates.waiting_phone)
+async def process_phone(message: types.Message, state: FSMContext):
+    try:
+        phone = message.text.strip()
+        if not phone.startswith('+'):
+            phone = f'+7{phone[-10:]}'
+
+        await state.update_data(phone_number=phone)
+
+        await message.answer("Напишите краткое описание о себе:")
+        await state.set_state(ProfileStates.waiting_about)
+
+    except Exception as e:
+        await message.answer("Неверный формат номера. Пожалуйста, укажите номер в формате +79991234567:")
 
 
 @router.message(ProfileStates.waiting_about)
@@ -318,9 +357,12 @@ async def process_grade(message: types.Message, state: FSMContext):
     data = await state.get_data()
     user = await sync_to_async(CustomUser.objects.get)(telegram_id=message.from_user.id)
 
+    user.full_name = data.get('full_name', user.full_name)
+    user.phone_number = data.get('phone_number', user.phone_number)
     user.about_user = data['about']
     user.stack = data['stack']
     user.grade = message.text
+
     await sync_to_async(user.save)()
 
     await message.answer("✅ Ваша анкета успешно сохранена!")
@@ -330,11 +372,17 @@ async def process_grade(message: types.Message, state: FSMContext):
 
 
 async def show_profiles(message: types.Message, current_user, page: int = 0):
-    per_page = 2
+    per_page = 1
 
     users = await sync_to_async(list)(
         CustomUser.objects.exclude(id=current_user.id)
-        .filter(about_user__isnull=False, stack__isnull=False, grade__isnull=False)
+        .filter(
+            full_name__isnull=False,
+            phone_number__isnull=False,
+            about_user__isnull=False,
+            stack__isnull=False,
+            grade__isnull=False
+        )
         .order_by('?')
     )
 
@@ -350,24 +398,25 @@ async def show_profiles(message: types.Message, current_user, page: int = 0):
     end = start + per_page
     users_page = users[start:end]
 
-    questionary = ["Доступные анкеты:\n"]
+    message_text = "Доступные анкеты:\n\n"
+
     for user in users_page:
-        questionary.append(
-            f"Имя: <b>{user.first_name or user.username}</b>\n"
+        message_text += (
+            f'ФИО: <b>{user.full_name}</b>\n'
+            f'Телефон: <b>{user.phone_number}</b>\n'
             f"О себе: {user.about_user}\n"
             f"Стек: {user.stack}\n"
             f"Уровень: {user.grade}\n"
-            f"Telegram: (https://t.me/{user.username})" if user.username else ""
-            f"______________"
         )
 
-    keyboard = profiles_keyboard(page, total_pages)
+        if user.username:
+            message_text += f"💬 Telegram: https://t.me/{user.username}\n"
 
     await message.answer(
-        "\n".join(questionary),
+        message_text,
         parse_mode="HTML",
         disable_web_page_preview=True,
-        reply_markup=keyboard
+        reply_markup=profiles_keyboard(page, total_pages)
     )
 
 

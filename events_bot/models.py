@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from phonenumber_field.modelfields import PhoneNumberField
 
 
 class CustomUser(AbstractUser):
@@ -13,6 +14,8 @@ class CustomUser(AbstractUser):
     telegram_name = models.CharField(max_length=255, blank=True, null=True)
     role = models.CharField(max_length=30, choices=ROLES)
     # из анкеты знакомств
+    full_name = models.CharField(max_length=255, blank=True, null=True)
+    phone_number = PhoneNumberField(blank=True, null=True, region='RU')
     about_user = models.TextField(blank=True, null=True)
     stack = models.TextField(blank=True, null=True)
     grade = models.TextField(blank=True, null=True)
@@ -67,3 +70,4 @@ class BroadcastMessage(models.Model):
         Event, on_delete=models.CASCADE, related_name="broadcasts")
     text = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+    end_at = models.DateTimeField(blank=True, null=True)

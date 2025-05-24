@@ -2,3 +2,5 @@ Django==5.2.1
 environs==14.1.1
 aiogram==3.20.0
 python-dotenv==1.0.1
+django-phonenumber-field==8.1.0
+phonenumbers==9.0.5

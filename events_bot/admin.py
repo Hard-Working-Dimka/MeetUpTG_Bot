@@ -15,6 +15,8 @@ class CustomUserAdmin(UserAdmin):
                 'fields': (
                     'telegram_id',
                     'telegram_name',
+                    'full_name',
+                    'phone_number',
                     'role',
                     'about_user',
                     'stack',

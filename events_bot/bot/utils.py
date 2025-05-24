@@ -38,14 +38,14 @@ async def show_events(message: types.Message, user_id: int):
     if current_events:
         text = 'Сейчас проходит:\n'
         for event in current_events:
-            text += f"\n{event.name} (начало: {event.start_at.strftime('%d.%m.%Y %H:%M')})"
+            text += f"{event.name} (начало: {event.start_at.strftime('%d.%m.%Y %H:%M')})"
     else:
         text = 'Сейчас нет активных мероприятий.\n'
 
     if upcoming_events:
         text += '\n\nБлижайшие мероприятия:\n'
         for event in upcoming_events:
-            text += f"\n{event.name} ({event.start_at.strftime('%d.%m.%Y %H:%M')})"
+            text += f"{event.name} ({event.start_at.strftime('%d.%m.%Y %H:%M')})"
     else:
         text += '\nБудущих мероприятий не запланировано.'
 

@@ -99,11 +99,18 @@ def speaker_keyboard():
 def profiles_keyboard(page: int, total_pages: int):
     builder = InlineKeyboardBuilder()
 
-    if page > 0:
+    if page == 0 and total_pages > 1:
+        builder.button(text="Вперед →", callback_data=f"next_page_{page+1}")
+
+    elif page == total_pages - 1 and total_pages > 1:
         builder.button(text="← Назад", callback_data=f"prev_page_{page-1}")
 
-    if page < total_pages - 1:
+    elif 0 < page < total_pages - 1:
+        builder.button(text="← Назад", callback_data=f"prev_page_{page-1}")
         builder.button(text="Вперед →", callback_data=f"next_page_{page+1}")
+
+    else:
+        return None
 
     builder.adjust(2)
     return builder.as_markup()
