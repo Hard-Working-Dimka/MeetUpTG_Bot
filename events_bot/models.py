@@ -75,3 +75,21 @@ class BroadcastMessage(models.Model):
     text = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     end_at = models.DateTimeField(blank=True, null=True)
+
+
+class SpeakerApplication(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'На рассмотрении'),
+        ('approved', 'Одобрена'),
+        ('rejected', 'Отклонена'),
+    ]
+
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    topic = models.CharField(max_length=255, verbose_name="Тема выступления")
+    description = models.TextField(verbose_name="Описание выступления")
+    experience = models.TextField(verbose_name="Опыт в теме")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Заявка от {self.user} на тему '{self.topic}'"
