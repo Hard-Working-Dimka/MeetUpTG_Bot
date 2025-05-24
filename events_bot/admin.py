@@ -1,5 +1,13 @@
 from django.contrib import admin
-from .models import CustomUser, Event, Presentation, Question, Donation, BroadcastMessage
+from .models import (
+    CustomUser,
+    Event,
+    Presentation,
+    Question,
+    Donation,
+    BroadcastMessage,
+    SpeakerApplication
+)
 from django.contrib.auth.admin import UserAdmin
 
 
@@ -64,3 +72,9 @@ class BroadcastMessageAdmin(admin.ModelAdmin):
     search_fields = ('text', 'event__name')
     autocomplete_fields = ('event',)
     readonly_fields = ('created_at',)
+
+
+@admin.register(SpeakerApplication)
+class SpeakerApplicationAdmin(admin.ModelAdmin):
+    list_display = ('user', 'topic', 'status', 'created_at')
+    list_filter = ('status', 'created_at')
