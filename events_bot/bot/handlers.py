@@ -1,12 +1,7 @@
 import os
 import sys
 import django
-from typing import Dict
-from django.utils import timezone
-from datetime import timezone as dt_timezone
 from pathlib import Path
-from dotenv import load_dotenv
-
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(BASE_DIR))
@@ -14,24 +9,7 @@ sys.path.append(str(BASE_DIR))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'meetup.settings')
 django.setup()
 
-from textwrap import dedent
-from aiogram import Router, types, F
-from aiogram.filters import Command, StateFilter
-from aiogram.types import CallbackQuery
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
-from asgiref.sync import sync_to_async
-from aiogram.types import LabeledPrice, PreCheckoutQuery
 
-from events_bot.models import (
-    CustomUser,
-    Question,
-    Presentation,
-    Event,
-    Donation,
-    SpeakerApplication
-)
-from utils import show_events
 from keyboards import (
     start_keyboard,
     show_speakers,
@@ -42,6 +20,28 @@ from keyboards import (
     questions_keyboard,
     answer_question_keyboard
 )
+from utils import show_events
+from events_bot.models import (
+    CustomUser,
+    Question,
+    Presentation,
+    Event,
+    Donation,
+    SpeakerApplication
+)
+from aiogram.types import LabeledPrice, PreCheckoutQuery
+from asgiref.sync import sync_to_async
+from aiogram.fsm.state import StatesGroup, State
+from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery
+from aiogram.filters import Command, StateFilter
+from aiogram import Router, types, F
+from textwrap import dedent
+
+from typing import Dict
+from django.utils import timezone
+from dotenv import load_dotenv
+
 
 router = Router()
 
@@ -95,7 +95,8 @@ async def start_handler(message: types.Message):
             'listener': 'Добро пожаловать, пользователь!'
         }.get(role, 'Добро пожаловать!')
     except CustomUser .DoesNotExist:
-        new_user = CustomUser(telegram_id=user_id, username=username, role='listener')
+        new_user = CustomUser(telegram_id=user_id,
+                              username=username, role='listener')
         await sync_to_async(new_user.save)()
 
         text = dedent("""
@@ -170,7 +171,7 @@ async def input_question(callback: CallbackQuery, state: FSMContext):
     )()
 
     active_presentation = next(
-        (p for p in speaker.presentation_set.all() if p.is_active), 
+        (p for p in speaker.presentation_set.all() if p.is_active),
         None
     )
 
@@ -220,10 +221,10 @@ async def show_my_questions(callback: CallbackQuery, state: FSMContext):
     )
 
     questions = await sync_to_async(list)(
-            Question.objects.filter(presentation__user=speaker)
-            .select_related('presentation', 'presentation__user')
-            .order_by('-presentation__start_at')
-        )
+        Question.objects.filter(presentation__user=speaker)
+        .select_related('presentation', 'presentation__user')
+        .order_by('-presentation__start_at')
+    )
 
     if not questions:
         await callback.message.answer("Вам пока не задавали вопросов.")
@@ -481,7 +482,8 @@ async def show_profiles(message: types.Message, current_user, page: int = 0):
         await message.answer("Пока нет других анкет для просмотра.")
         return
 
-    total_pages = (len(users) // per_page) + (1 if len(users) % per_page else 0)
+    total_pages = (len(users) // per_page) + \
+        (1 if len(users) % per_page else 0)
 
     user_pagination[message.from_user.id] = page
 
@@ -669,6 +671,7 @@ async def process_description(message: types.Message, state: FSMContext):
 async def process_experience(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
     user = await sync_to_async(CustomUser.objects.get)(telegram_id=message.from_user.id)
+    organizer_chat_id = os.getenv('organizer_chat_id')
 
     application = await sync_to_async(SpeakerApplication.objects.create)(
         user=user,
@@ -685,14 +688,11 @@ async def process_experience(message: types.Message, state: FSMContext):
         "Организаторы рассмотрят вашу заявку и свяжутся с вами."
     )
 
-    organizers = await sync_to_async(list)(CustomUser.objects.filter(role='organizer'))
-    for organizer in organizers:
-        await message.bot.send_message(
-            chat_id=os.getenv('organizer_chat_id'),
-            text=f"Новая заявка спикера!\n\n"
-                    f"От: {user.full_name or user.username}\n"
-                    f"Тема: {user_data['topic']}\n\n"
-                    f"Для просмотра всех заявок перейдите в админку Django"
-        )
+    await message.bot.send_message(
+        chat_id=organizer_chat_id,
+        text=f"Новая заявка спикера от @{user.username or user.full_name}\n"
+        f"Тема: {user_data['topic']}\n"
+        f"Описание: {user_data['description']}"
+    )
 
     await state.clear()
