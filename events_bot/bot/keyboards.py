@@ -181,3 +181,9 @@ def notifications_keyboard():
     builder.adjust(2)
 
     return builder.as_markup()
+
+
+def back_to_menu_keyboard():
+    builder = InlineKeyboardBuilder()
+    builder.button(text="⬅️ Назад в меню", callback_data="main_menu")
+    return builder.as_markup()

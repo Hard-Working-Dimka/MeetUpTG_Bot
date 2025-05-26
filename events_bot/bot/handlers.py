@@ -18,7 +18,8 @@ from keyboards import (
     notifications_keyboard,
     main_keyboard,
     questions_keyboard,
-    answer_question_keyboard
+    answer_question_keyboard,
+    back_to_menu_keyboard
 )
 from utils import show_events
 from events_bot.models import (
@@ -217,11 +218,15 @@ async def process_question(message: types.Message, state: FSMContext):
 
         await message.answer(
             f'✅ Ваш вопрос отправлен докладчику: {speaker_name}\n'
-            f'Тема: "{presentation.topic}"'
+            f'Тема: "{presentation.topic}"',
+            reply_markup=back_to_menu_keyboard()
         )
 
     except Presentation.DoesNotExist:
-        await message.answer("Сейчас у этого докладчика нет активного выступления")
+        await message.answer(
+            "Сейчас у этого докладчика нет активного выступления",
+            reply_markup=back_to_menu_keyboard()
+        )
 
     await state.clear()
 
@@ -237,10 +242,13 @@ async def show_question(callback: CallbackQuery, state: FSMContext):
         try:
             await callback.message.edit_text(
                 "У вас нет неотвеченных вопросов!",
-                reply_markup=None
+                reply_markup=back_to_menu_keyboard()
             )
         except:
-            await callback.message.answer("У вас нет неотвеченных вопросов!")
+            await callback.message.answer(
+                "У вас нет неотвеченных вопросов!",
+                reply_markup=back_to_menu_keyboard()
+            )
         return await callback.answer()
 
     current_index = min(current_index, len(unanswered_questions) - 1)
@@ -327,7 +335,10 @@ async def show_event_schedule(callback: CallbackQuery):
     )()
 
     if not event:
-        await callback.message.answer("На данный момент нет запланированных мероприятий")
+        await callback.message.answer(
+            "На данный момент нет запланированных мероприятий",
+            reply_markup=back_to_menu_keyboard()
+        )
         return await callback.answer()
 
     presentations = await sync_to_async(list)(
@@ -364,7 +375,11 @@ async def show_event_schedule(callback: CallbackQuery):
 
     full_text = event_info + "\n".join(schedule)
 
-    await callback.message.answer(full_text, parse_mode='HTML')
+    await callback.message.answer(
+        full_text,
+        parse_mode='HTML',
+        reply_markup=back_to_menu_keyboard()
+    )
     await callback.answer()
 
 
@@ -453,7 +468,10 @@ async def process_grade(message: types.Message, state: FSMContext):
 
     await sync_to_async(user.save)()
 
-    await message.answer("✅ Ваша анкета успешно сохранена!")
+    await message.answer(
+        "✅ Ваша анкета успешно сохранена!",
+        reply_markup=back_to_menu_keyboard()
+    )
     await state.clear()
 
     await show_profiles(message, user)
@@ -475,7 +493,10 @@ async def show_profiles(message: types.Message, current_user, page: int = 0):
     )
 
     if not users:
-        await message.answer("Пока нет других анкет для просмотра.")
+        await message.answer(
+            "Пока нет других анкет для просмотра.",
+            reply_markup=back_to_menu_keyboard()
+        )
         return
 
     total_pages = (len(users) // per_page) + \
@@ -572,7 +593,8 @@ async def process_successful_payment(message: types.Message, state: FSMContext):
 
     await message.answer(
         f"Спасибо за ваш донат {payment.total_amount / 100} руб.! "
-        "\nСредства пойдут на организацию мероприятий."
+        "\nСредства пойдут на организацию мероприятий.",
+        reply_markup=back_to_menu_keyboard()
     )
     await state.clear()
 
@@ -600,7 +622,10 @@ async def confirm_subscription(callback: CallbackQuery):
     user.notifications = True
     await sync_to_async(user.save)()
 
-    await callback.message.edit_text("✅ Вы подписались на уведомления!")
+    await callback.message.edit_text(
+        "✅ Вы подписались на уведомления!",
+        reply_markup=back_to_menu_keyboard()
+    )
     await callback.answer()
 
 
@@ -635,7 +660,10 @@ async def send_notification_to_subscribers(callback: types.CallbackQuery):
 
     report_message = "✅ Уведомление успешно отправлено."
 
-    await callback.message.answer(report_message)
+    await callback.message.answer(
+        report_message,
+        reply_markup=back_to_menu_keyboard()
+    )
     await callback.answer()
 
 
@@ -688,7 +716,18 @@ async def process_experience(message: types.Message, state: FSMContext):
         chat_id=organizer_chat_id,
         text=f"Новая заявка спикера от @{user.username or user.full_name}\n"
         f"Тема: {user_data['topic']}\n"
-        f"Описание: {user_data['description']}"
+        f"Описание: {user_data['description']}",
+        reply_markup=back_to_menu_keyboard()
     )
 
     await state.clear()
+
+
+@router.callback_query(F.data == "main_menu")
+async def back_to_main_menu(callback: CallbackQuery):
+    keyboard = await main_keyboard(callback.from_user.id)
+    await callback.message.edit_text(
+        "Главное меню:",
+        reply_markup=keyboard
+    )
+    await callback.answer()
