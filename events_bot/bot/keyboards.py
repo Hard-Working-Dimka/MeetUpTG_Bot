@@ -100,18 +100,6 @@ def show_speakers(speakers):
     return builder.as_markup()
 
 
-def speaker_keyboard():
-    builder = InlineKeyboardBuilder()
-
-    builder.button(
-        text="Показать мои вопросы",
-        callback_data="show_my_questions"
-    )
-
-    builder.adjust(1)
-    return builder.as_markup()
-
-
 def profiles_keyboard(page: int, total_pages: int):
     builder = InlineKeyboardBuilder()
 

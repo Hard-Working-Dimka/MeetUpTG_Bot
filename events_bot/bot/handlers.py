@@ -21,7 +21,7 @@ from keyboards import (
     answer_question_keyboard,
     back_to_menu_keyboard
 )
-from utils import show_events
+from utils import show_events, display_question
 from events_bot.models import (
     CustomUser,
     Question,
@@ -231,14 +231,22 @@ async def process_question(message: types.Message, state: FSMContext):
     await state.clear()
 
 
+@router.callback_query(F.data.startswith('show_my_questions'))
 async def show_question(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    all_questions = data['questions']
+    user = await sync_to_async(CustomUser.objects.get)(telegram_id=callback.from_user.id)
+    all_questions = await sync_to_async(list)(
+        Question.objects.filter(
+            presentation__user=user,
+            answered=False
+        ).select_related('presentation', 'presentation__user')
+    )
 
-    unanswered_questions = [q for q in all_questions if not q.answered]
-    current_index = data.get('current_unanswered_index', 0)
+    await state.update_data(
+        questions=all_questions,
+        current_unanswered_index=0
+    )
 
-    if not unanswered_questions:
+    if not all_questions:
         try:
             await callback.message.edit_text(
                 "У вас нет неотвеченных вопросов!",
@@ -251,72 +259,56 @@ async def show_question(callback: CallbackQuery, state: FSMContext):
             )
         return await callback.answer()
 
-    current_index = min(current_index, len(unanswered_questions) - 1)
-    question = unanswered_questions[current_index]
-
-    presenter = question.presentation.user
-    asker_name = f"@{presenter.username}"
-
-    message_text = (
-        f"Вопрос {current_index + 1} из {len(unanswered_questions)}"
-        f"\nТема: <b>{question.presentation.topic}</b>\n"
-        f"От: {asker_name}\n"
-        f"Вопрос: {question.question_text}\n"
-        f"Дата: {question.presentation.start_at.strftime('%d.%m.%Y %H:%M')}\n"
-        f"Статус: ❌ Не отвечено"
-    )
-
-    keyboard = questions_keyboard(
-        current_index=current_index,
-        total_questions=len(unanswered_questions),
-        question_id=question.id,
-        is_answered=question.answered,
-        asker_id=presenter.telegram_id
-    )
-
-    await callback.message.edit_text(
-        text=message_text,
-        parse_mode="HTML",
-        reply_markup=keyboard
-    )
-
-    await state.update_data(current_unanswered_index=current_index)
+    await display_question(callback, state, 0)
     await callback.answer()
 
 
 @router.callback_query(F.data.startswith('prev_question_'))
 async def prev_question(callback: CallbackQuery, state: FSMContext):
-    new_index = int(callback.data.split('_')[-1])
-    await state.update_data(current_unanswered_index=new_index)
-    await show_question(callback, state)
+    data = await state.get_data()
+    current_index = data['current_unanswered_index']
+    new_index = max(0, current_index - 1)
+    await display_question(callback, state, new_index)
     await callback.answer()
 
 
 @router.callback_query(F.data.startswith('next_question_'))
 async def next_question(callback: CallbackQuery, state: FSMContext):
-    new_index = int(callback.data.split('_')[-1])
-    await state.update_data(current_unanswered_index=new_index)
-    await show_question(callback, state)
+    data = await state.get_data()
+    questions = data['questions']
+    current_index = data['current_unanswered_index']
+    new_index = min(len(questions) - 1, current_index + 1)
+    await display_question(callback, state, new_index)
     await callback.answer()
 
 
 @router.callback_query(F.data.startswith('mark_answered_'))
-async def mark_question_answered(callback: CallbackQuery):
+async def mark_question_answered(callback: CallbackQuery, state: FSMContext):
     question_id = int(callback.data.split('_')[-1])
 
     await sync_to_async(Question.objects.filter(id=question_id).update)(answered=True)
 
-    await callback.answer("Вопрос помечен как отвеченный", show_alert=True)
-    await show_my_questions(callback)
+    data = await state.get_data()
+    updated_questions = [
+        q for q in data['questions']
+        if q.id != question_id
+    ]
+    await state.update_data(questions=updated_questions)
+
+    await show_question(callback, state)
+    await callback.answer("✅ Вопрос помечен как отвеченный")
 
 
 @router.callback_query(F.data.startswith('answer_question_'))
 async def answer_question(callback: CallbackQuery):
-    _, _, question_id, asker_id = callback.data.split('_')
+    parts = callback.data.split('_')
+    question_id = int(parts[2])
+    asker_id = int(parts[3])
+
     question = await sync_to_async(Question.objects.get)(id=question_id)
 
     await callback.message.answer(
-        f"Чтобы ответить на вопрос:\n\n"
+        f"что бы ответить на вопрос:\n\n"
         f"<i>{question.question_text}</i>\n\n"
         f"Нажмите кнопку ниже чтобы написать пользователю напрямую.",
         reply_markup=answer_question_keyboard(asker_id),
