@@ -6,7 +6,7 @@ from phonenumber_field.modelfields import PhoneNumberField
 class CustomUser(AbstractUser):
     ROLES = [
         ('organizer', 'Организатор'),
-        ('speaker', 'Выступающий'),
+        ('speaker', 'Докладчик'),
         ('listener', 'Слушатель'),
     ]
     telegram_id = models.CharField(
@@ -33,32 +33,46 @@ class Event(models.Model):
     info = models.TextField(blank=True, null=True)
     start_at = models.DateTimeField(blank=True, null=True)
     end_at = models.DateTimeField(blank=True, null=True)
+    speakers = models.ManyToManyField(
+        CustomUser,
+        through='Presentation',
+        related_name='events_as_speaker'
+    )
 
     def __str__(self):
         return self.name
 
 
 class Presentation(models.Model):
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    topic = models.CharField(max_length=255, blank=True, null=True)
+    speaker = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='presentations')
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='presentations')
+    topic = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
     start_at = models.DateTimeField(blank=True, null=True)
     end_at = models.DateTimeField(blank=True, null=True)
-    event = models.ForeignKey(Event, on_delete=models.CASCADE)
     approved = models.BooleanField(default=False)
     is_active = models.BooleanField(default=False)
 
     def __str__(self):
-        return self.topic
+        return f"{self.topic} ({self.event})"
 
 
 class Question(models.Model):
-    presentation = models.ForeignKey(
-        Presentation, on_delete=models.CASCADE, related_name="questions")
-    question_text = models.CharField(max_length=255, blank=True, null=True)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='questions')
+    presentation = models.ForeignKey(Presentation, on_delete=models.CASCADE, related_name='questions')
+    asker = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='questions_asked')
+    question_text = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
     answered = models.BooleanField(default=False)
+    answer_text = models.TextField(blank=True, null=True)
+    answered_at = models.DateTimeField(blank=True, null=True)
+    answered_by = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='questions_answered')
+
+    class Meta:
+        ordering = ['-created_at']
 
     def __str__(self):
-        return self.question_text
+        return f"Вопрос к {self.presentation}"
 
 
 class Donation(models.Model):
