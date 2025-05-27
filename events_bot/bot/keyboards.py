@@ -74,12 +74,15 @@ async def main_keyboard(user_id):
     return builder.as_markup()
 
 
-def show_speakers(speakers):
+async def show_speakers(speakers):
     builder = InlineKeyboardBuilder()
     for speaker in speakers:
-        presentations = speaker.presentation_set.all()
+        presentations = await sync_to_async(list)(speaker.presentations.all())
 
-        speaker_name = f'{speaker.first_name} {speaker.last_name}'
+        speaker_name = (
+            f'{speaker.first_name} {speaker.last_name}'
+            if speaker.first_name else f"@{speaker.username}"
+        )
 
         if presentations:
             topics = ", ".join([p.topic for p in presentations])

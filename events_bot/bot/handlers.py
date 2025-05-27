@@ -149,9 +149,9 @@ async def handle_events_button(callback: CallbackQuery):
 async def ask_speaker(callback: CallbackQuery):
     speakers = await sync_to_async(list)(
         CustomUser.objects.filter(role='speaker')
-        .prefetch_related('presentation_set')
+        .prefetch_related('presentations')
     )
-    markup = show_speakers(speakers)
+    markup = await show_speakers(speakers)
     text = dedent("""
                   ✅ - Докладчик сейчас выступает
                   ❌ - Докладчик ещё не выступал или уже выступил
@@ -165,24 +165,24 @@ async def ask_speaker(callback: CallbackQuery):
 @router.callback_query(F.data.startswith('speaker_'))
 async def input_question(callback: CallbackQuery, state: FSMContext):
     speaker_id = int(callback.data.split('_')[1])
-    speaker = await sync_to_async(
-        lambda: CustomUser.objects
-        .prefetch_related('presentation_set')
-        .get(id=speaker_id)
-    )()
+    speaker = await sync_to_async(CustomUser.objects.get)(id=speaker_id)
 
-    active_presentation = next(
-        (p for p in speaker.presentation_set.all() if p.is_active),
-        None
-    )
+    active_presentation = await sync_to_async(
+        lambda: Presentation.objects.filter(
+            speaker=speaker,
+            is_active=True
+        ).first()
+    )()
 
     await state.update_data({
         'selected_speaker_id': speaker_id,
         'presentation_id': active_presentation.id if active_presentation else None
     })
 
-    speaker_name = f'{speaker.first_name} {speaker.last_name}'
-
+    speaker_name = (
+        f'{speaker.first_name} {speaker.last_name}'
+        if speaker.first_name else f"@{speaker.username}"
+    )
     await callback.message.edit_text(
         f'Введите ваш вопрос для {speaker_name}'
     )
@@ -198,23 +198,31 @@ async def process_question(message: types.Message, state: FSMContext):
 
     try:
         presentation = await sync_to_async(
-            lambda: Presentation.objects.filter(
-                user_id=speaker_id,
-                end_at__gte=timezone.now()
-            ).first()
+            lambda: Presentation.objects.select_related('event', 'speaker')
+            .filter(speaker_id=speaker_id)
+            .order_by('-start_at')
+            .first()
         )()
 
         if not presentation:
             raise Presentation.DoesNotExist
 
+        asker = await sync_to_async(CustomUser.objects.get)(telegram_id=message.from_user.id)
+
         question = await sync_to_async(Question.objects.create)(
+            event=presentation.event,
             presentation=presentation,
             question_text=question_text,
-            answered=False
+            answered=False,
+            asker=asker
         )
 
-        speaker = await sync_to_async(CustomUser.objects.get)(id=speaker_id)
-        speaker_name = f'{speaker.first_name} {speaker.last_name}' if speaker.first_name else f"@{speaker.username}"
+        speaker_name = (
+            f'{presentation.speaker.first_name} {presentation.speaker.last_name}'.strip()
+            if presentation.speaker.first_name or presentation.speaker.last_name
+            else f"@{presentation.speaker.username}" if presentation.speaker.username
+            else f"ID: {presentation.speaker.id}"
+        )
 
         await message.answer(
             f'✅ Ваш вопрос отправлен докладчику: {speaker_name}\n'
@@ -236,9 +244,9 @@ async def show_question(callback: CallbackQuery, state: FSMContext):
     user = await sync_to_async(CustomUser.objects.get)(telegram_id=callback.from_user.id)
     all_questions = await sync_to_async(list)(
         Question.objects.filter(
-            presentation__user=user,
+            presentation__speaker=user,
             answered=False
-        ).select_related('presentation', 'presentation__user')
+        ).select_related('presentation', 'presentation__speaker', 'event')
     )
 
     await state.update_data(
@@ -335,7 +343,7 @@ async def show_event_schedule(callback: CallbackQuery):
 
     presentations = await sync_to_async(list)(
         Presentation.objects.filter(event=event)
-        .select_related('user')
+        .select_related('speaker')
         .order_by('start_at')
     )
 
@@ -351,7 +359,7 @@ async def show_event_schedule(callback: CallbackQuery):
         end_time = presentation.end_at.strftime('%H:%M')
         time_range = f'с {start_time} до {end_time}'
 
-        user = presentation.user
+        user = presentation.speaker
         speaker_name = (
             f'{user.first_name} {user.last_name}'
             if user.first_name and user.last_name
@@ -708,8 +716,7 @@ async def process_experience(message: types.Message, state: FSMContext):
         chat_id=organizer_chat_id,
         text=f"Новая заявка спикера от @{user.username or user.full_name}\n"
         f"Тема: {user_data['topic']}\n"
-        f"Описание: {user_data['description']}",
-        reply_markup=back_to_menu_keyboard()
+        f"Описание: {user_data['description']}"
     )
 
     await state.clear()

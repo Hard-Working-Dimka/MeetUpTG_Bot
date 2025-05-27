@@ -13,7 +13,7 @@ django.setup()
 
 from datetime import datetime
 from keyboards import main_keyboard, questions_keyboard
-
+from django.utils import timezone
 from aiogram import types
 from asgiref.sync import sync_to_async
 from events_bot.models import Event
@@ -33,20 +33,24 @@ def get_events():
 
 
 async def show_events(message: types.Message, user_id: int):
-    events = await get_events()
-    current_events = events['current']
-    upcoming_events = events['upcoming']
+    now = timezone.now()
+    events = await sync_to_async(
+        lambda: {
+            'current': list(Event.objects.filter(start_at__lte=now, end_at__gte=now)),
+            'upcoming': list(Event.objects.filter(start_at__gt=now).order_by('start_at'))
+        }
+    )()
 
-    if current_events:
+    if events['current']:
         text = 'Сейчас проходит:\n'
-        for event in current_events:
+        for event in events['current']:
             text += f"{event.name} (начало: {event.start_at.strftime('%d.%m.%Y %H:%M')})"
     else:
         text = 'Сейчас нет активных мероприятий.\n'
 
-    if upcoming_events:
+    if events['upcoming']:
         text += '\n\nБлижайшие мероприятия:\n'
-        for event in upcoming_events:
+        for event in events['upcoming']:
             text += f"{event.name} ({event.start_at.strftime('%d.%m.%Y %H:%M')})"
     else:
         text += '\nБудущих мероприятий не запланировано.'
@@ -60,11 +64,12 @@ async def display_question(callback: CallbackQuery, state: FSMContext, index: in
     questions = data['questions']
     question = questions[index]
 
-    presenter = question.presentation.user
-    asker_name = f"@{presenter.username}" if presenter.username else f"{presenter.first_name} {presenter.last_name}"
+    asker = question.asker
+    asker_name = f"@{asker.username}" if asker.username else f"{asker.first_name} {asker.last_name}"
 
     message_text = (
         f"Вопрос {index + 1} из {len(questions)}\n"
+        f"Событие: {question.event.name}\n"
         f"Тема: <b>{question.presentation.topic}</b>\n"
         f"От: {asker_name}\n"
         f"Вопрос: {question.question_text}\n"
@@ -76,7 +81,7 @@ async def display_question(callback: CallbackQuery, state: FSMContext, index: in
         total_questions=len(questions),
         question_id=question.id,
         is_answered=question.answered,
-        asker_id=presenter.telegram_id
+        asker_id=asker.telegram_id
     )
 
     try:
