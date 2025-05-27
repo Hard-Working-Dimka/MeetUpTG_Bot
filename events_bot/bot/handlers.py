@@ -208,13 +208,15 @@ async def process_question(message: types.Message, state: FSMContext):
             raise Presentation.DoesNotExist
 
         asker = await sync_to_async(CustomUser.objects.get)(telegram_id=message.from_user.id)
+        speaker = await sync_to_async(CustomUser .objects.get)(id=speaker_id)
 
         question = await sync_to_async(Question.objects.create)(
             event=presentation.event,
             presentation=presentation,
             question_text=question_text,
             answered=False,
-            asker=asker
+            asker=asker,
+            speaker=speaker
         )
 
         speaker_name = (
@@ -241,31 +243,30 @@ async def process_question(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith('show_my_questions'))
 async def show_question(callback: CallbackQuery, state: FSMContext):
-    user = await sync_to_async(CustomUser.objects.get)(telegram_id=callback.from_user.id)
-    all_questions = await sync_to_async(list)(
-        Question.objects.filter(
-            presentation__speaker=user,
-            answered=False
-        ).select_related('presentation', 'presentation__speaker', 'event')
-    )
+    user_id = callback.from_user.id
+
+    user_questions = await sync_to_async(
+        lambda: list(
+            Question.objects.filter(
+                speaker__telegram_id=user_id,
+                answered=False
+            ).select_related(
+                'presentation',
+                'presentation__speaker',
+                'event',
+                'asker'
+            ).order_by('-id')
+        )
+    )()
+
+    if not user_questions:
+        await callback.answer("У вас нет неотвеченных вопросов", show_alert=True)
+        return
 
     await state.update_data(
-        questions=all_questions,
-        current_unanswered_index=0
+        questions=user_questions,
+        current_question_index=0
     )
-
-    if not all_questions:
-        try:
-            await callback.message.edit_text(
-                "У вас нет неотвеченных вопросов!",
-                reply_markup=back_to_menu_keyboard()
-            )
-        except:
-            await callback.message.answer(
-                "У вас нет неотвеченных вопросов!",
-                reply_markup=back_to_menu_keyboard()
-            )
-        return await callback.answer()
 
     await display_question(callback, state, 0)
     await callback.answer()
@@ -311,7 +312,16 @@ async def mark_question_answered(callback: CallbackQuery, state: FSMContext):
 async def answer_question(callback: CallbackQuery):
     parts = callback.data.split('_')
     question_id = int(parts[2])
-    asker_id = int(parts[3])
+    asker_id_str = parts[3]
+
+    if asker_id_str == 'None':
+        await callback.answer("Пользователь не оставил контактов", show_alert=True)
+        return
+    try:
+        asker_id = int(asker_id_str)
+    except ValueError:
+        await callback.answer("Некорректный ID пользователя", show_alert=True)
+        return
 
     question = await sync_to_async(Question.objects.get)(id=question_id)
 

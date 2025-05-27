@@ -62,17 +62,20 @@ async def show_events(message: types.Message, user_id: int):
 async def display_question(callback: CallbackQuery, state: FSMContext, index: int):
     data = await state.get_data()
     questions = data['questions']
-    question = questions[index]
 
+    if index < 0 or index >= len(questions):
+        await callback.answer("Нет больше вопросов")
+        return
+
+    question = questions[index]
     asker = question.asker
-    asker_name = f"@{asker.username}" if asker.username else f"{asker.first_name} {asker.last_name}"
 
     message_text = (
-        f"Вопрос {index + 1} из {len(questions)}\n"
+        f"Вопрос {index + 1} из {len(questions)}\n\n"
         f"Событие: {question.event.name}\n"
-        f"Тема: <b>{question.presentation.topic}</b>\n"
-        f"От: {asker_name}\n"
-        f"Вопрос: {question.question_text}\n"
+        f"Тема: {question.presentation.topic}\n"
+        f"От: {asker.full_name or asker.username or 'Аноним'}\n"
+        f"Вопрос: {question.question_text}\n\n"
         f"Статус: {'✅ Отвечено' if question.answered else '❌ Не отвечено'}"
     )
 
@@ -83,7 +86,6 @@ async def display_question(callback: CallbackQuery, state: FSMContext, index: in
         is_answered=question.answered,
         asker_id=asker.telegram_id
     )
-
     try:
         await callback.message.edit_text(
             text=message_text,
