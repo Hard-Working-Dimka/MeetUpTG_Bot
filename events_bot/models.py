@@ -61,6 +61,7 @@ class Question(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='questions')
     presentation = models.ForeignKey(Presentation, on_delete=models.CASCADE, related_name='questions')
     asker = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='questions_asked')
+    speaker = models.ForeignKey(CustomUser , on_delete=models.SET_NULL, null=True, blank=True, related_name='questions_for_speaker')
     question_text = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     answered = models.BooleanField(default=False)

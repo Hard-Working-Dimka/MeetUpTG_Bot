@@ -75,14 +75,14 @@ class PresentationAdmin(admin.ModelAdmin):
 
 @admin.register(Question)
 class QuestionAdmin(admin.ModelAdmin):
-    list_display = ('short_question', 'presentation', 'asker', 'answered', 'created_at')
+    list_display = ('short_question', 'presentation', 'asker', 'speaker', 'answered', 'created_at')
     list_filter = ('answered', 'event', 'presentation')
     search_fields = ('question_text', 'presentation__topic', 'asker__username')
-    autocomplete_fields = ('asker', 'presentation', 'event', 'answered_by')
+    autocomplete_fields = ('asker', 'presentation', 'event', 'answered_by', 'speaker')
     readonly_fields = ('created_at',)
     fieldsets = (
         (None, {
-            'fields': ('event', 'presentation', 'asker', 'question_text')
+            'fields': ('event', 'presentation', 'asker', 'speaker', 'question_text')
         }),
         ('Ответ', {
             'fields': ('answered', 'answer_text', 'answered_by', 'answered_at')
